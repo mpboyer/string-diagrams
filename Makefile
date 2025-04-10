@@ -1,0 +1,2 @@
+main:
+	lmake test.tex
