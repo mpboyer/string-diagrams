@@ -1,0 +1,341 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{diag}
+
+\RequirePackage{tikz}
+\usetikzlibrary{calc, patterns, snakes, arrows, decorations.markings, shapes.misc}
+\RequirePackage{ifthen}
+
+\def\defaultfacecolor{green}
+
+\makeatletter
+\tikzset{%
+	cross/.style={%
+		cross out,
+		draw,
+		minimum size=2*{#1-\pgflinewidth},
+		inner sep=0pt,
+		outer sep=0pt,
+	},
+	bnode/.style={
+		draw,
+		black,
+		circle,
+		fill=black,
+		inner sep=1pt,
+	},
+	bplace/.style={
+		draw,
+		blue,
+		thick,
+		cross,
+		inner sep=2pt,
+	},
+	yspot/.style={
+		draw,
+		\defaultfacecolor,
+		circle,
+		fill=\defaultfacecolor,
+		inner sep=1pt,
+	},
+	eface/.style={
+		draw,
+		\defaultfacecolor,
+	},
+	rnode/.style={
+		draw,
+		red,
+		circle,
+		fill=red,
+		inner sep=1pt,
+	},
+	dedge/.style={
+		postaction={nomorepostaction,decorate,decoration={markings, mark= at position 0.5 with {\arrow{>}}}},
+	},
+	nomorepostaction/.code={\let\tikz@postactions\pgfutil@empty}
+}
+\makeatother
+
+\def\storeface#1#2{\expandafter\xdef\csname faceid#1\endcsname{#2}}
+\def\getface#1{\csname face#1\endcsname}
+\newcounter{nextfaceid}
+\newcounter{maxfaceseen}
+
+\def\storefinalface#1#2{\expandafter\xdef\csname finalfaceid#1\endcsname{#2}}
+\def\getfinalface#1{\csname finalfaceid#1\endcsname}
+
+\def\storefacecolor#1#2{\expandafter\xdef\csname facecolor#1\endcsname{#2}}
+\def\getfacecolor#1{\csname facecolor#1\endcsname}
+
+\def\storeminslice#1#2{\expandafter\xdef\csname minfaceslice#1\endcsname{#2}}
+\def\getminslice#1{\csname minfaceslice#1\endcsname}
+
+\def\storeedgeid#1#2{\expandafter\xdef\csname edgeid#1\endcsname{#2}}
+\def\getedgeid#1{\csname edgeid#1\endcsname}
+\newcounter{nextedgeid}
+
+\def\storeedgepath#1#2{\expandafter\xdef\csname edgepath#1\endcsname{#2}}
+\def\getedgepath#1{\csname edgepath#1\endcsname}
+\def\expandedgepath#1#2{\storeedgepath{\getedgeid{#1}}{\getedgepath{\getedgeid{#1}} #2}}
+
+\def\storeedgecolor#1#2{\expandafter\xdeg\csname edgecolor#1\endcsname{#2}}
+\def\getedgecolor#1{\csname edgecolor#1\endcsname}
+
+\def\mergefaces#1#2{%
+	\pgfmathtruncatemacro\valfa{\getfinalface{#1}}
+	\pgfmathtruncatemacro\valfb{\getfinalface{#2}}
+	\pgfmathtruncatemacro\newfaceid{min(\valfa, \valfb)}
+	\pgfmathtruncatemacro\latestfaceid{\themaxfaceseen - 1}
+	\foreach \x in {0,...,\latestfaceid}{
+		\ifthenelse{\getfinalface{\x}=\valfa \OR \getfinalface{\x}=\valfb}{
+			\storefinalface{\x}{\newfaceid}
+		}{}
+	}
+}
+
+\def\drawfaces{0}
+\def\enablefaces{%
+	\def\drawfaces{1}
+	\placesandspots
+}
+\def\disablefaces{%
+	\def\drawfaces{0}
+}
+
+\def\writefaceids{0}
+\def\enablefaceids{\def\writefaceids{1}}
+\def\disablefaceids{\def\writefaceids{0}}
+
+% The parameter is the number of strings as input
+\def\startdiagram#1{%
+	\pgfmathtruncatemacro\maxstringidx{#1 - 1}
+	\pgfmathsetmacro\centeringoffset{-.5 * #1}
+	\pgfmathtruncatemacro\diagramlevel{0}
+
+	\foreach \x in {0,...,\maxstringidx}{
+		\storeface{\x}{\x}
+		\storefinalface{\x}{\x}
+		\storefacecolor{\x}{\defaultfacecolor}
+		\storeminslice{\x}{0}
+	}
+	\pgfmathtruncatemacro\tmpnextfaceid{\maxstringidx + 1}
+	\setcounter{nextfaceid}{\tmpnextfaceid}
+	\setcounter{maxfaceseen}{\tmpnextfaceid}
+
+	\setcounter{nextedgeid}{0}
+}
+
+\def\drawinitialstrings#1{
+	\pgfmathtruncatemacro\maxstringidx{#1 - 1}
+	\pgfmathsetmacro\centeringoffset{-.5 * #1}
+	\pgfmathtruncatemacro\diagramlevel{0}
+
+	\foreach \x in {0,...,\maxstringidx}{
+		\storeface{\x}{\x}
+	}
+
+	\begin{scope}[xshift=\centeringoffset cm]
+		\ifthenelse{\maxstringidx=0}{}{
+		\foreach \x in {1,...,\maxstringidx}{
+			\storeedgeid{\x}{\thenextedgeid}
+			\storeedgepath{\thenextedgeid}{($(\x + \centeringoffset, .5)$) -- ($(\x + \centeringoffset, 0)$)};
+			\storeedgecolor{\thenextedgeid}{black}
+			\stepcounter{nextedgeid}
+		}
+		}
+	\end{scope}
+
+	\foreach \x in {0,...,\maxstringidx} {
+		\node at ($(\x + \centeringoffset + .5, 0 - \diagramlevel)$) (spot_\diagramlevel_\x) {};
+	}
+
+	\foreach \x in {1,...,\maxstringidx} {
+		\node at ($(\x + \centeringoffset, 0 - \diagramlevel)$) (place_\diagramlevel_\x) {};
+	}
+
+	\pgfmathtruncatemacro\tmpnextfaceid{\maxstringidx + 1}
+	\setcounter{nextfaceid}{\tmpnextfaceid}
+
+	\pgfmathtruncatemacro\latestfaceid{\themaxfaceseen - 1}
+}
+
+\def\finishdiagram{
+	\ifthenelse{\maxstringidx=0}{}{
+		\foreach \x in {1,...,\maxstringidx}{
+			\expandedgepath{\x}{ -- + (0, -.5)};
+		}
+	}
+
+	\pgfmathtruncatemacro\maxedgeid{\thenextedgeid - 1}
+	\ifthenelse{\thenextedgeid=0}{}{
+		\foreach\eid in {0,...,\maxedgeid}{
+			\draw[rounded corners, \getedgecolor{\eid}] \getedgepath{\eid};
+		}
+	}
+}
+
+\def\scanslice#1#2#3{
+	\def\wb{#1} % Horizontal Spacing
+	\def\inputs{#2} % Input Strings
+	\def\outputs{#3} % Output Strings
+	\pgfmathtruncatemacro\nextdiaglevel{\diagramlevel + 1}
+	\pgfmathtruncatemacro\horizoffset{\outputs - \inputs}
+	\pgfmathtruncatemacro\bottomrightcorner{\wb + \outputs + 1}
+	\pgfmathtruncatemacro\innertoprightcorner{\wb + \inputs}
+
+	\ifthenelse{\outputs=0 \AND \inputs>0}{
+		\mergefaces{\getface{\wb}}{\getface{\innertoprightcorner}}
+	}{}
+
+	\ifthenelse{\horizoffset>0}{
+		\foreach \x in {\maxstringidx,...,\innertoprightcorner}{
+			\pgfmathtruncatemacro\offsetidx{\x + \horizoffset}
+			\storeface{\offsetidx}{\getface{\x}}
+		}
+	}{
+		\foreach\x in {\innertoprightcorner,...,\maxstringidx}{
+			\pgfmathtruncatemacro\offsetidx{\x + \horizoffset}
+			\storeface{\offsetidx}{\getface{\x}}
+		}
+	}
+
+	\pgfmathtruncatemacro\firstnewface{\wb + 1}
+	\pgfmathtruncatemacro\finalnewface{\wb + \outputs - 1}
+	\ifthenelse{\outputs > 1}{
+		\foreach \x in {\firstnewface,...,\finalnewface}{
+			\storeface{\x}{\thenextfaceid}
+			\storeminslice{\thenextfaceid}{\nextdiaglevel}
+
+			\ifthenelse{\themaxfaceseen > \thenextfaceid}{}{
+				\storefinalface{\thenextfaceid}{\thenextfaceid}
+				\storefacecolor{\thenextfaceid}{eface}
+				\stepcounter{maxfaceseen}
+			}
+
+			\stepcounter{nextfaceid}
+		}
+	}{}
+
+	\pgfmathtruncatemacro\latestfaceid{\themaxfaceseen - 1}
+
+	\pgfmathtruncatemacro\maxstringidx{\maxstringidx + \horizoffset}
+	\pgfmathtruncatemacro\diagramlevel{\diagramlevel + 1}
+}
+
+\def\diagslicenovertex#1#2#3{
+	\def\wb{#1}
+	\def\inputs{#2}
+	\def\outputs{#3}
+
+	\pgfmathtruncatemacro\nextdiaglevel{\diagramlevel+1}
+	\pgfmathtruncatemacro\horizoffset{\outputs - \inputs}
+	\pgfmathsetmacro\nextoffset{\centeringoffset - .5*\horizoffset}
+
+	\pgfmathtruncatemacro\toprightcorner{\wb + \inputs + 1}
+	\pgfmathtruncatemacro\bottomrightcorner{\wb + \outputs + 1}
+	\pgfmathsetmacro\vertexpos{0.5 * (\centeringoffset + \wb + 0.5 + 0.5*\inputs) + 0.5*(\nextoffset + \wb + 0.5 + 0.5*\outputs)}
+	%
+	\node (curvertex) at ($(\vertexpos, -.5*\diagramlevel -.5*\nextdiaglevel)$) {};
+	\node at (curvertex) (v\diagramlevel) {};
+	%
+	\ifthenelse{\wb=0}{}{
+		\foreach \x in {1,...,\wb} {
+			\expandedgepath{\x}{-- ($(\x + \nextoffset, 0 - \nextdiaglevel)$)};
+		}
+	}
+	%
+	\ifthenelse{\inputs=0}{}{
+		\foreach \x in {1,...,\inputs} {
+			\pgfmathtruncatemacro\edgepos{\wb + \x}
+			\expandedgepath{\edgepos}{-- ($(\vertexpos, -.5*\diagramlevel -.5*\nextdiaglevel)$)};
+		}
+	}
+	%
+	\ifthenelse{\toprightcorner > \maxstringidx}{}{
+		\foreach \x in {\toprightcorner,...,\maxstringidx} {
+			\expandedgepath{\x}{-- ($(\x + \horizoffset + \nextoffset, 0 - \nextdiaglevel)$)};
+		}
+
+		\ifthenelse{\inputs > \outputs}{
+			\foreach \x in {\toprightcorner,...,\maxstringidx}{
+				\pgfmathtruncatemacro\edgepos{\x + \horizoffset}
+				\storeedgeid{\edgepos}{\getedgeid{\x}}
+			}
+		}{}
+		\ifthenelse{\outputs > \inputs}{
+			\foreach \x in {\maxstringidx,...,\toprightcorner}{
+				\pgfmathtruncatemacro\edgepos{\x + \horizoffset}
+				\storeedgeid{\edgepos}{\getedgeid{\x}}
+			}
+		}{}
+	}
+	%
+	\ifthenelse{\outputs=0}{}{
+		\foreach \x in {1,...,\outputs} {
+			\pgfmathtruncatemacro\edgepos{\wb + \x}
+			\storeedgeid{\edgepos}{\thenextedgeid}
+			\storeedgepath{\thenextedgeid}{($(\vertexpos, -.5*\diagramlevel -.5*\nextdiaglevel)$) -- ($(\edgepos + \nextoffset, 0 - \nextdiaglevel)$)};
+			\storeedgecolor{\thenextedgeid}{black}
+			\stepcounter{nextedgeid}
+		}
+	}
+	%
+	\ifthenelse{\drawfaces=0}{}{
+		\ifthenelse{\inputs=0 \AND \outputs=0}{
+			\pgfmathtruncatemacro\innertopleftcorner{\wb - 1}
+			\pgfmathtruncatemacro\innertoprightcorner{\toprightcorner}
+
+			\draw[eface] ($(\wb + \centeringoffset + .5, 0 - \diagramlevel)$) edge[bend left=40] ($(\wb + \nextoffset + .5, 0 - \nextdiaglevel)$);
+			\draw[eface] ($(\wb + \centeringoffset + .5, 0 - \diagramlevel)$) edge[bend right=40] ($(\wb + \nextoffset + .5, 0 - \nextdiaglevel)$);
+		}{
+			\pgfmathtruncatemacro\innertopleftcorner{\wb}
+			\pgfmathtruncatemacro\innertoprightcorner{\toprightcorner - 1}
+		}
+		%
+		\foreach \x in {0,...,\innertopleftcorner} {
+			\draw[eface, \getfacecolor{\getfinalface{\getface{\x}}}] ($(\x + \centeringoffset + .5, 0 - \diagramlevel)$) -- ($(\x + \nextoffset + .5, 0 - \nextdiaglevel)$);
+		}
+		%
+		\foreach \x in {\innertoprightcorner,...,\maxstringidx} {
+			\draw[eface, \getfacecolor{\getfinalface{\getface{\x}}}] ($(\x + \centeringoffset + .5, 0 - \diagramlevel)$) -- ($(\x + \horizoffset + \nextoffset + .5, 0 - \nextdiaglevel)$);
+		}
+	}
+	\scanslice{#1}{#2}{#3}
+	\pgfmathsetmacro\centeringoffset{\nextoffset}
+	\foreach \x in {0,...,\maxstringidx} {
+		\node at ($(\x + \centeringoffset + .5, 0 - \diagramlevel)$) (spot_\diagramlevel_\x) {};
+	}
+	\foreach \x in {1,...,\maxstringidx} {
+		\node at ($(\x + \centeringoffset, 0 - \diagramlevel)$) (place_\diagramlevel_\x) {};
+	}
+	\ifthenelse{\drawfaces=0}{}{
+		\placesandspots
+	}
+}
+
+
+\def\diagslice#1#2#3{
+	\diagslicenovertex{#1}{#2}{#3}
+	\node[bnode] at (curvertex) {};
+}
+
+\def\reddiagslice#1#2#3{
+	\diagslicenovertex{#1}{#2}{#3}
+	\node[rnode] at (curvertex) {};
+}
+
+\def\placesandspots{
+	\foreach \x in {0,...,\maxstringidx} {
+		\node[yspot, \getfacecolor{\getfinalface{\getface{\x}}}] at (spot_\diagramlevel_\x) {};
+
+		\ifthenelse{\writefaceids=1 \AND \diagramlevel=\getminslice{\getface{\x}} \AND
+		\getfinalface{\getface{\x}}=\getface{\x}}{
+			\node[node distance=.25cm, above of=spot_\diagramlevel_\x] {\small \getface{\x}};
+		}{}
+	}
+
+	\ifthenelse{\maxstringidx=0 \OR \drawplaces=0}{}{
+		\foreach \x in {1,...,\maxstringidx} {
+			\node[bplace] at (place_\diagramlevel_\x) {};
+		}
+	}
+}
